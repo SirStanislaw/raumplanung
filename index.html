@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raumplanung – horizont group</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  /* ── Header ── */
+  #header {
+    background: #fff;
+    padding: 8px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 2px solid #e0e0e0;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  #header h1 {
+    color: #1a1a2e;
+    font-size: clamp(13px, 1.6vw, 20px);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  #header .subtitle {
+    color: #888;
+    font-size: clamp(10px, 1vw, 12px);
+    margin-top: 2px;
+  }
+
+  /* ── Post-IT Area ── */
+  #postit-area {
+    flex: 0 0 auto;
+    padding: 8px 16px 6px;
+    background: #fff;
+    border-bottom: 1px solid #e0e0e0;
+    position: relative;
+    /* height adapts to content but caps via max-height */
+    max-height: 14vh;
+    overflow: hidden;
+  }
+  #postit-area-label {
+    color: #aaa;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
+    user-select: none;
+  }
+  #postits-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: flex-start;
+    position: relative;
+  }
+
+  /* ── Post-IT Notes ── */
+  .postit {
+    position: relative;
+    min-width: 65px;
+    max-width: 90px;
+    padding: 5px 6px 6px;
+    border-radius: 2px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.35), inset 0 -2px 3px rgba(0,0,0,0.12);
+    cursor: grab;
+    user-select: none;
+    transition: box-shadow 0.15s, transform 0.1s;
+    z-index: 10;
+    clip-path: polygon(0 0, calc(100% - 6px) 0, 100% 6px, 100% 100%, 0 100%);
+  }
+  .postit::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 0;
+    height: 0;
+    border-style: solid;
+    border-width: 0 6px 6px 0;
+    border-color: transparent rgba(0,0,0,0.25) transparent transparent;
+  }
+  .postit:active, .postit.dragging {
+    cursor: grabbing;
+    box-shadow: 4px 5px 12px rgba(0,0,0,0.5);
+    transform: rotate(1deg) scale(1.04);
+    z-index: 9999;
+  }
+  .postit-dept {
+    font-size: 7px;
+    font-weight: 800;
+    color: rgba(0,0,0,0.75);
+    margin-bottom: 3px;
+    letter-spacing: 0.3px;
+  }
+  .postit-names {
+    font-size: 6px;
+    color: rgba(0,0,0,0.7);
+    line-height: 1.45;
+  }
+  .postit-names span.note {
+    font-style: italic;
+    font-size: 5px;
+    color: rgba(0,0,0,0.55);
+  }
+  /* Pin decoration */
+  .postit::after {
+    content: '📌';
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 7px;
+    filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.4));
+  }
+
+  /* ── Color Variants ── */
+  .yellow  { background: #fff176; }
+  .green   { background: #a5d6a7; }
+  .blue    { background: #90caf9; }
+  .orange  { background: #ffcc80; }
+  .pink    { background: #f48fb1; }
+  .purple  { background: #ce93d8; }
+  .coral   { background: #ef9a9a; }
+  .teal    { background: #80cbc4; }
+  .lblue   { background: #b3e5fc; }
+  .lime    { background: #e6ee9c; }
+  .peach   { background: #ffab91; }
+
+  /* ── Floor Plan Area ── */
+  #floorplan-area {
+    flex: 1 1 0;
+    background: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 8px 12px 8px;
+    position: relative;
+    min-height: 0;
+  }
+  #floorplan-label {
+    color: #aaa;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  #grundriss-wrapper {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+    min-height: 0;
+  }
+  #grundriss-img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: contain;
+  }
+  #img-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    padding: 40px;
+    color: #666;
+  }
+  #img-placeholder p {
+    font-size: 14px;
+    text-align: center;
+    color: #888;
+  }
+  #load-img-btn {
+    padding: 10px 22px;
+    background: #1a1a2e;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  #load-img-btn:hover { background: #e94560; }
+  #file-input { display: none; }
+
+  /* ── Screenshot Button ── */
+  #screenshot-btn {
+    position: fixed;
+    bottom: 14px;
+    right: 16px;
+    padding: 8px 18px;
+    background: #1a1a2e;
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    z-index: 10000;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.18);
+    transition: transform 0.15s, background 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  #screenshot-btn:hover {
+    transform: translateY(-1px);
+    background: #e94560;
+  }
+  #screenshot-btn:active { transform: translateY(0); }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    bottom: 56px;
+    right: 16px;
+    background: #333;
+    color: #fff;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 10001;
+  }
+  #toast.show { opacity: 1; }
+
+  /* ── Drag Drop Overlay ── */
+  #drop-hint {
+    position: fixed;
+    inset: 0;
+    background: rgba(26,26,46,0.82);
+    color: #fff;
+    font-size: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  body.dragging-file #drop-hint { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- Drop hint overlay -->
+<div id="drop-hint">🗺️ Grundriss hier ablegen</div>
+
+<!-- Header -->
+<div id="header">
+  <div>
+    <h1>🏢 Raumplanung – horizont group gmbh</h1>
+    <div class="subtitle">Drag &amp; Drop Post-ITs auf den Grundriss • Klicken zum Umschalten der Ansicht</div>
+  </div>
+  <div style="color:#999; font-size:11px; text-align:right;">
+    <div id="postit-count"></div>
+    <div style="margin-top:3px;">💡 Tipp: Grundriss per Drag &amp; Drop laden</div>
+  </div>
+</div>
+
+<!-- Post-IT Area -->
+<div id="postit-area">
+  <div id="postit-area-label">📋 Belegungsplan – Post-ITs (verschiebbar)</div>
+  <div id="postits-container">
+    <!-- Post-ITs werden per JS eingefügt -->
+  </div>
+</div>
+
+<!-- Floor Plan -->
+<div id="floorplan-area">
+  <div id="floorplan-label">🗺️ Grundriss</div>
+  <div id="grundriss-wrapper">
+    <img id="grundriss-img" src="grundriss.png" alt="Grundriss" style="display:none;"
+         onload="this.style.display='block'; document.getElementById('img-placeholder').style.display='none';"
+         onerror="this.style.display='none'; document.getElementById('img-placeholder').style.display='flex';" />
+    <div id="img-placeholder">
+      <div style="font-size:48px;">🗺️</div>
+      <p>Grundriss-Bild nicht gefunden.<br>Speichere dein Bild als <strong>grundriss.png</strong> im gleichen Ordner<br>oder lade es hier hoch:</p>
+      <button id="load-img-btn" onclick="document.getElementById('file-input').click()">📂 Bild laden</button>
+      <input type="file" id="file-input" accept="image/*" onchange="loadImage(event)" />
+    </div>
+  </div>
+</div>
+
+<!-- Screenshot Button -->
+<button id="screenshot-btn" onclick="takeScreenshot()">
+  📸 Screenshot
+</button>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── Post-IT Definitionen ──────────────────────────────────────────────
+const postits = [
+  {
+    id: 'hr1', dept: 'HR 1', color: 'yellow',
+    names: ['Sabine']
+  },
+  {
+    id: 'hr2', dept: 'HR 2', color: 'yellow',
+    names: ['Manuel', 'Karina', 'Henry']
+  },
+  {
+    id: 'pm', dept: 'PM', color: 'green',
+    names: ['Raimund', 'Björn', 'Sebastian', 'Janine (bis?)', '⏳ Lucas (bis Ende Juni)']
+  },
+  {
+    id: 'ac', dept: 'AC', color: 'blue',
+    names: ['Simon']
+  },
+  {
+    id: 'vl', dept: 'VL', color: 'orange',
+    names: ['Marcus']
+  },
+  {
+    id: 'vt', dept: 'VT', color: 'pink',
+    names: ['Kai']
+  },
+  {
+    id: 'tl', dept: 'TL', color: 'purple',
+    names: ['Katharina']
+  },
+  {
+    id: 'exad', dept: 'ExAd', color: 'coral',
+    names: ['Jose', 'Patrick', 'Michael']
+  },
+  {
+    id: 'co', dept: 'CO', color: 'teal',
+    names: ['Janina', 'Steffi']
+  },
+  {
+    id: 'tsid1', dept: 'TsID 1', color: 'lblue',
+    names: ['Thomas V.', 'Sengül', 'Katrin', 'Azubi']
+  },
+  {
+    id: 'tsid2', dept: 'TsID 2', color: 'lblue',
+    names: ['Thomas L.', 'Stefan', 'Anika', 'Azubi']
+  },
+  {
+    id: 'exid', dept: 'ExID', color: 'peach',
+    names: ['Jutta', 'Ursula', 'Julia', 'Azubi', 'Azubi', 'Karin']
+  },
+  {
+    id: 'acid', dept: 'AcID', color: 'lime',
+    names: ['Margarita', 'Frau Wegener', 'Azubi']
+  },
+  {
+    id: 'gwid', dept: 'GwID', color: 'yellow',
+    names: ['Denise']
+  },
+  {
+    id: 'mkt', dept: 'MKT', color: 'pink',
+    names: ['5 Personen']
+  }
+];
+
+// ── Render Post-ITs ───────────────────────────────────────────────────
+const container = document.getElementById('postits-container');
+
+postits.forEach(p => {
+  const el = document.createElement('div');
+  el.className = `postit ${p.color}`;
+  el.id = `postit-${p.id}`;
+  el.dataset.id = p.id;
+
+  const namesHtml = p.names.map(n => {
+    if (n.startsWith('⏳') || n.includes('bis')) {
+      return `<div class="note">${n}</div>`;
+    }
+    return `<div>${n}</div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="postit-dept">${p.dept}</div>
+    <div class="postit-names">${namesHtml}</div>
+  `;
+
+  container.appendChild(el);
+  makeDraggable(el);
+});
+
+document.getElementById('postit-count').textContent =
+  `${postits.length} Abteilungen / Teams`;
+
+// ── Drag & Drop for Post-ITs ──────────────────────────────────────────
+function makeDraggable(el) {
+  let startX, startY, origX, origY;
+  let isFixed = false;
+  let fixedLeft, fixedTop;
+
+  el.addEventListener('mousedown', onMouseDown);
+
+  function onMouseDown(e) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+
+    el.classList.add('dragging');
+
+    // Convert to fixed positioning for free movement
+    if (!isFixed) {
+      const rect = el.getBoundingClientRect();
+      fixedLeft = rect.left;
+      fixedTop = rect.top;
+      el.style.position = 'fixed';
+      el.style.left = fixedLeft + 'px';
+      el.style.top = fixedTop + 'px';
+      el.style.width = rect.width + 'px';
+      el.style.zIndex = 9999;
+      document.body.appendChild(el);
+      isFixed = true;
+    }
+
+    startX = e.clientX;
+    startY = e.clientY;
+    origX = parseFloat(el.style.left);
+    origY = parseFloat(el.style.top);
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }
+
+  function onMouseMove(e) {
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    el.style.left = (origX + dx) + 'px';
+    el.style.top  = (origY + dy) + 'px';
+  }
+
+  function onMouseUp(e) {
+    el.classList.remove('dragging');
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+  }
+}
+
+// Touch support
+postits.forEach(p => {
+  const el = document.getElementById(`postit-${p.id}`);
+  el.addEventListener('touchstart', onTouchStart, { passive: false });
+});
+
+function onTouchStart(e) {
+  e.preventDefault();
+  const el = e.currentTarget;
+  el.classList.add('dragging');
+
+  const touch = e.touches[0];
+  let startX = touch.clientX;
+  let startY = touch.clientY;
+
+  if (el.style.position !== 'fixed') {
+    const rect = el.getBoundingClientRect();
+    el.style.position = 'fixed';
+    el.style.left = rect.left + 'px';
+    el.style.top = rect.top + 'px';
+    el.style.width = rect.width + 'px';
+    el.style.zIndex = 9999;
+    document.body.appendChild(el);
+  }
+
+  let origX = parseFloat(el.style.left);
+  let origY = parseFloat(el.style.top);
+
+  function onTouchMove(e) {
+    e.preventDefault();
+    const t = e.touches[0];
+    el.style.left = (origX + t.clientX - startX) + 'px';
+    el.style.top  = (origY + t.clientY - startY) + 'px';
+  }
+  function onTouchEnd() {
+    el.classList.remove('dragging');
+    document.removeEventListener('touchmove', onTouchMove);
+    document.removeEventListener('touchend', onTouchEnd);
+  }
+
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+}
+
+// ── Image Loader ──────────────────────────────────────────────────────
+function loadImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const url = URL.createObjectURL(file);
+  const img = document.getElementById('grundriss-img');
+  img.src = url;
+  img.style.display = 'block';
+  document.getElementById('img-placeholder').style.display = 'none';
+  showToast('✅ Grundriss geladen');
+}
+
+// Drag & Drop image onto page
+document.addEventListener('dragover', e => {
+  if (e.dataTransfer.types.includes('Files')) {
+    e.preventDefault();
+    document.body.classList.add('dragging-file');
+  }
+});
+document.addEventListener('dragleave', e => {
+  if (e.relatedTarget === null) {
+    document.body.classList.remove('dragging-file');
+  }
+});
+document.addEventListener('drop', e => {
+  document.body.classList.remove('dragging-file');
+  if (e.dataTransfer.files.length > 0) {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    if (file.type.startsWith('image/')) {
+      const url = URL.createObjectURL(file);
+      const img = document.getElementById('grundriss-img');
+      img.src = url;
+      img.style.display = 'block';
+      document.getElementById('img-placeholder').style.display = 'none';
+      showToast('✅ Grundriss geladen');
+    }
+  }
+});
+
+// ── Screenshot via Screen Capture API ────────────────────────────────
+async function takeScreenshot() {
+  const pad = n => String(n).padStart(2, '0');
+  const d = new Date();
+  const dateStr = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  const filename = `Grundriss_${dateStr}.png`;
+
+  showToast('📸 Bitte aktuellen Tab freigeben…');
+
+  let stream;
+  try {
+    // preferCurrentTab = Chrome zeigt direkt den aktuellen Tab vor
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { displaySurface: 'browser', frameRate: 1 },
+      audio: false,
+      preferCurrentTab: true
+    });
+  } catch (err) {
+    if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+      showToast('⚠️ Abgebrochen');
+    } else {
+      showToast('❌ Kein Zugriff auf Bildschirm');
+    }
+    return;
+  }
+
+  // Kurz warten bis erster Frame bereit ist
+  await new Promise(r => setTimeout(r, 300));
+
+  try {
+    const track = stream.getVideoTracks()[0];
+    // ImageCapture API für einzelnen Frame
+    if (window.ImageCapture) {
+      const capture = new ImageCapture(track);
+      const bitmap = await capture.grabFrame();
+      stream.getTracks().forEach(t => t.stop());
+
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      canvas.getContext('2d').drawImage(bitmap, 0, 0);
+      await saveCanvas(canvas, filename);
+    } else {
+      // Fallback: Video-Element
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.muted = true;
+      await video.play();
+      await new Promise(r => setTimeout(r, 200));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      stream.getTracks().forEach(t => t.stop());
+      video.srcObject = null;
+      await saveCanvas(canvas, filename);
+    }
+  } catch (err) {
+    stream.getTracks().forEach(t => t.stop());
+    showToast('❌ Fehler beim Aufnehmen: ' + err.message);
+    console.error(err);
+  }
+}
+
+async function saveCanvas(canvas, filename) {
+  canvas.toBlob(async (blob) => {
+    // Speicherdialog (Chrome/Edge)
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{ description: 'PNG-Bild', accept: { 'image/png': ['.png'] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        showToast('✅ Gespeichert: ' + filename);
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          showToast('⚠️ Abgebrochen');
+          return;
+        }
+      }
+    }
+    // Fallback: direkter Download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showToast('✅ Gespeichert: ' + filename);
+  }, 'image/png');
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── Reset Button ──────────────────────────────────────────────────────
+// Add reset to header
+const resetBtn = document.createElement('button');
+resetBtn.textContent = '↺ Post-ITs zurücksetzen';
+resetBtn.style.cssText = `
+  padding: 5px 12px;
+  background: #fff;
+  color: #555;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  margin-left: 12px;
+  transition: border-color 0.15s;
+`;
+resetBtn.onclick = () => {
+  // Remove all fixed postits from body and re-add to container
+  postits.forEach(p => {
+    const el = document.getElementById(`postit-${p.id}`);
+    if (el && el.parentElement === document.body) {
+      el.style.position = '';
+      el.style.left = '';
+      el.style.top = '';
+      el.style.width = '';
+      el.style.zIndex = '';
+      container.appendChild(el);
+    }
+  });
+  showToast('↺ Post-ITs zurückgesetzt');
+};
+document.querySelector('#header > div:last-child').appendChild(resetBtn);
+</script>
+</body>
+</html>
